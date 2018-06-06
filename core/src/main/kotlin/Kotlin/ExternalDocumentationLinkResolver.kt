@@ -16,9 +16,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.resolve.descriptorUtil.parents
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLConnection
+import java.net.*
 import java.nio.file.Path
 import java.security.MessageDigest
 
@@ -42,7 +40,26 @@ class ExternalDocumentationLinkResolver @Inject constructor(
     val cachedProtocols = setOf("http", "https", "ftp")
 
     fun URL.doOpenConnectionToReadContent(timeout: Int = 10000, redirectsAllowed: Int = 16): URLConnection {
-        val connection = this.openConnection()
+
+        val proxyHost: String? = System.getProperty("http.proxyHost")
+        val proxyPort: String? = System.getProperty("http.proxyPort")
+
+        val connection = if(proxyHost != null && proxyPort != null){
+            val proxyUser: String? = System.getProperty("http.proxyUser")
+            val proxyPassword: String? = System.getProperty("http.proxyPassword")
+            if(proxyUser != null && proxyPassword != null){
+                Authenticator.setDefault( object : Authenticator() {
+                    override fun getPasswordAuthentication(): PasswordAuthentication {
+                        return PasswordAuthentication(proxyUser,proxyPassword.toCharArray())
+                    }
+                })
+            }
+            this.openConnection(Proxy(Proxy.Type.HTTP,
+                    InetSocketAddress(proxyHost,Integer.parseInt(proxyPort))))
+        }else{
+            this.openConnection()
+        }
+
         connection.connectTimeout = timeout
         connection.readTimeout = timeout
 
